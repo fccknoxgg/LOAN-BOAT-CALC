@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Loan Tracker</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+    .card { background: white; padding: 20px; border-radius: 10px; max-width: 750px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    h2 { margin-top: 0; }
+    input, button { padding: 10px; margin-top: 10px; width: 100%; }
+    table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+    th, td { padding: 8px; border-bottom: 1px solid #ddd; text-align: center; }
+    button.delete { background: #ff4d4d; color: white; border: none; cursor: pointer; }
+    .motivation, .savings { margin-top: 10px; text-align: center; font-weight: bold; }
+    .share { margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Loan Tracker</h2>
+
+    <p><strong>Starting Balance:</strong> $16,500</p>
+    <p><strong>Interest Rate:</strong> 14.99% APR</p>
+    <p><strong>Loan Term:</strong> 96 Months</p>
+    <p><strong>Estimated Monthly Payment:</strong> $<span id="monthlyPayment"></span></p>
+
+    <p><strong>Current Balance:</strong> $<span id="balance">0</span></p>
+    <p><strong>Payments Made:</strong> <span id="count">0</span> / 96</p>
+
+    <div class="motivation" id="motivation"></div>
+    <div class="savings" id="savings"></div>
+
+    <input type="number" id="payment" placeholder="Enter payment amount">
+    <button onclick="makePayment()">Submit Payment</button>
+
+    <div class="share">
+      <button onclick="exportData()">Copy Share Code (Send to Dad)</button>
+      <input id="importBox" placeholder="Paste share code here">
+      <button onclick="importData()">Load Shared Data</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Payment</th>
+          <th>Interest</th>
+          <th>Principal</th>
+          <th>Balance</th>
+          <th>Delete</th>
+        </tr>
+      </thead>
+      <tbody id="history"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const principalStart = 16500;
+    const annualRate = 0.1499;
+    const monthlyRate = annualRate / 12;
+    const termMonths = 96;
+
+    const monthlyPayment = (principalStart * monthlyRate) /
+      (1 - Math.pow(1 + monthlyRate, -termMonths));
+
+    document.getElementById('monthlyPayment').innerText = monthlyPayment.toFixed(2);
+
+    let data = JSON.parse(localStorage.getItem('loanData')) || { payments: [] };
+
+    function saveData() {
+      localStorage.setItem('loanData', JSON.stringify(data));
+    }
+
+    function getMotivation(percentPaid) {
+      if (percentPaid === 0) return "Let's get started 💪";
+      if (percentPaid < 25) return "Good start — keep it rolling 🔥";
+      if (percentPaid < 50) return "You're building momentum ⚡";
+      if (percentPaid < 75) return "Over halfway — don't slow down 🚀";
+      if (percentPaid < 100) return "Almost there — finish strong 🏁";
+      return "PAID OFF — YOU DID IT 🎉";
+    }
+
+    function calcTotalInterestMinimum() {
+      let balance = principalStart;
+      let totalInterest = 0;
+      for (let i = 0; i < termMonths; i++) {
+        let interest = balance * monthlyRate;
+        let principal = monthlyPayment - interest;
+        balance -= principal;
+        totalInterest += interest;
+      }
+      return totalInterest;
+    }
+
+    function calcActualInterest() {
+      let balance = principalStart;
+      let totalInterest = 0;
+      data.payments.forEach(p => {
+        let interest = balance * monthlyRate;
+        let principal = p.amount - interest;
+        balance -= principal;
+        totalInterest += interest;
+      });
+      return totalInterest;
+    }
+
+    function render() {
+      const tbody = document.getElementById('history');
+      tbody.innerHTML = '';
+
+      let balance = principalStart;
+
+      data.payments.forEach((p, index) => {
+        const interest = balance * monthlyRate;
+        const principal = p.amount - interest;
+        balance -= principal;
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${index + 1}</td>
+          <td>$${p.amount.toFixed(2)}</td>
+          <td>$${interest.toFixed(2)}</td>
+          <td>$${principal.toFixed(2)}</td>
+          <td>$${Math.max(balance,0).toFixed(2)}</td>
+          <td><button class="delete" onclick="deletePayment(${index})">X</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      const percentPaid = ((principalStart - balance) / principalStart) * 100;
+      const saved = Math.max(0, calcTotalInterestMinimum() - calcActualInterest());
+
+      document.getElementById('balance').innerText = Math.max(balance,0).toFixed(2);
+      document.getElementById('count').innerText = data.payments.length;
+      document.getElementById('motivation').innerText = getMotivation(percentPaid);
+      document.getElementById('savings').innerText = `You saved $${saved.toFixed(2)} in interest 💰`;
+
+      saveData();
+    }
+
+    function makePayment() {
+      const input = document.getElementById('payment');
+      const amount = parseFloat(input.value);
+      if (!amount || amount <= 0) return alert('Enter valid payment');
+      data.payments.push({ amount });
+      input.value = '';
+      render();
+    }
+
+    function deletePayment(index) {
+      data.payments.splice(index, 1);
+      render();
+    }
+
+    function exportData() {
+      const code = btoa(JSON.stringify(data));
+      navigator.clipboard.writeText(code);
+      alert('Copied! Send this code to your dad.');
+    }
+
+    function importData() {
+      try {
+        const code = document.getElementById('importBox').value;
+        data = JSON.parse(atob(code));
+        render();
+      } catch {
+        alert('Invalid code');
+      }
+    }
+
+    render();
+  </script>
+</body>
+</html>
